@@ -18,6 +18,9 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include "sdb.h"
+#include <memory/paddr.h>
+#include <myfuncs.h>
+#define SDB_DEBUG
 
 static int is_batch_mode = false;
 
@@ -49,10 +52,49 @@ static int cmd_c(char *args) {
 
 
 static int cmd_q(char *args) {
+  printf(ANSI_FMT("exited successfully\n", ANSI_FG_YELLOW));
+  set_nemu_state(2, 0, 0);
   return -1;
 }
 
 static int cmd_help(char *args);
+
+static int cmd_si(char *args)
+{
+  if(args == NULL)
+    cpu_exec(1);
+  else 
+    cpu_exec(atoi(args));
+  return 0;
+}
+
+static int cmd_i(char *args)
+{
+  if(args[0] == 'r')
+    isa_reg_display();
+  else if(args[0] == 'w')
+    printf(ANSI_FMT("unfinished function", ANSI_FG_RED));
+  else
+    printf(ANSI_FMT("unknown command", ANSI_FG_RED));
+  return 0;
+}
+
+// 扫描内存
+static int cmd_x(char *args)
+{
+  int n = atoi(strtok(args, " "));// 内存个数
+  paddr_t val = expr_eval(strtok(NULL, " "));
+  #ifdef SDB_DEBUG
+  printf("input n is %d and val is %#x\n", n, val);
+  #endif
+  uint8_t* s = guest_to_host(val);
+  printf(ANSI_FMT("scan %d bytes starting from %#x\n", ANSI_FG_YELLOW), n, val);
+  for(int i = 0; i < n; i++, s++, val++)
+  {
+    printf(ANSI_FMT("%#x : %#x\n", ANSI_FG_MAGENTA), val, *s);
+  }
+  return 0;
+}
 
 static struct {
   const char *name;
@@ -62,7 +104,9 @@ static struct {
   { "help", "Display information about all supported commands", cmd_help },
   { "c", "Continue the execution of the program", cmd_c },
   { "q", "Exit NEMU", cmd_q },
-
+  { "si", "si N,Run by Step, and execute once by default", cmd_si},
+  { "info", "info r or info w , print information of register or watchpoints", cmd_i},
+  { "x", "x N EXPR , scan N memory blocks from EXPR", cmd_x}
   /* TODO: Add more commands */
 
 };
@@ -73,6 +117,8 @@ static int cmd_help(char *args) {
   /* extract the first argument */
   char *arg = strtok(NULL, " ");
   int i;
+  
+  printf(ANSI_BG_WHITE);
 
   if (arg == NULL) {
     /* no argument given */
@@ -89,6 +135,9 @@ static int cmd_help(char *args) {
     }
     printf("Unknown command '%s'\n", arg);
   }
+
+  printf(ANSI_NONE);
+
   return 0;
 }
 
